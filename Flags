@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spoj správné předložky a vlajky</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f0f0f0;
+            margin: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        #score, #progress {
+            font-size: 1.2em;
+            margin: 10px 0;
+        }
+        .container {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            margin: 20px auto;
+            max-width: 1200px;
+        }
+        .state-box {
+            background-color: #fff;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 10px;
+            width: 180px;
+            min-height: 150px;
+            text-align: center;
+        }
+        .state-box.drag-over {
+            border-color: #4CAF50;
+            background-color: #e0f7fa;
+        }
+        .preposition {
+            background-color: #4CAF50;
+            color: white;
+            padding: 8px;
+            margin: 5px;
+            cursor: move;
+            display: inline-block;
+            border-radius: 4px;
+        }
+        .flag {
+            width: 60px;
+            height: 40px;
+            margin: 5px;
+            cursor: move;
+            border: 1px solid #ccc;
+        }
+        .correct {
+            border: 2px solid #4CAF50;
+        }
+        .incorrect {
+            border: 2px solid #f44336;
+        }
+        .options {
+            margin: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            background-color: #008CBA;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #005f87;
+        }
+        #game-over {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+        #game-over-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Spoj správné předložky a vlajky</h1>
+    <p>Přetáhni "nach" nebo "in die" ke správnému státu a přiřaď správnou vlajku.</p>
+    <p id="score">Skóre: 0</p>
+    <p id="progress">Postup: 0/18 států dokončeno</p>
+
+    <div class="container" id="states">
+        <!-- State boxes will be populated by JavaScript -->
+    </div>
+
+    <div class="options">
+        <div id="prepositions">
+            <div class="preposition" draggable="true" data-preposition="nach">nach</div>
+            <div class="preposition" draggable="true" data-preposition="in die">in die</div>
+        </div>
+        <div id="flags">
+            <!-- Flags will be populated by JavaScript -->
+        </div>
+    </div>
+
+    <div>
+        <button onclick="resetGame()">Resetovat</button>
+        <button onclick="nextSet()">Další sada</button>
+    </div>
+
+    <div id="game-over">
+        <div id="game-over-content">
+            <h2>Gratulujeme!</h2>
+            <p>Všechny státy byly správně spárovány!</p>
+            <p>Konečné skóre: <span id="final-score"></span></p>
+            <button onclick="restartGame()">Hrát znovu</button>
+        </div>
+    </div>
+
+    <script>
+        let score = 0;
+        let completedCountries = new Set();
+        const statesData = [
+            { name: "Deutschland", preposition: "nach", flag: "https://flagcdn.com/w80/de.png" },
+            { name: "Finnland", preposition: "nach", flag: "https://flagcdn.com/w80/fi.png" },
+            { name: "Frankreich", preposition: "nach", flag: "https://flagcdn.com/w80/fr.png" },
+            { name: "Griechenland", preposition: "nach", flag: "https://flagcdn.com/w80/gr.png" },
+            { name: "Italien", preposition: "nach", flag: "https://flagcdn.com/w80/it.png" },
+            { name: "Kroatien", preposition: "nach", flag: "https://flagcdn.com/w80/hr.png" },
+            { name: "Luxemburg", preposition: "nach", flag: "https://flagcdn.com/w80/lu.png" },
+            { name: "Niederlande", preposition: "in die", flag: "https://flagcdn.com/w80/nl.png" },
+            { name: "Österreich", preposition: "nach", flag: "https://flagcdn.com/w80/at.png" },
+            { name: "Polen", preposition: "nach", flag: "https://flagcdn.com/w80/pl.png" },
+            { name: "Portugal", preposition: "nach", flag: "https://flagcdn.com/w80/pt.png" },
+            { name: "Schweiz", preposition: "in die", flag: "https://flagcdn.com/w80/ch.png"},
+            { name: "Slowakei", preposition: "in die", flag: "https://flagcdn.com/w80/sk.png" },
+            { name: "Spanien", preposition: "nach", flag: "https://flagcdn.com/w80/es.png" },
+            { name: "Tschechien", preposition: "nach", flag: "https://flagcdn.com/w80/cz.png" },
+            { name: "Ukraine", preposition: "in die", flag: "https://flagcdn.com/w80/ua.png" },
+            { name: "Ungarn", preposition: "nach", flag: "https://flagcdn.com/w80/hu.png" },
+            { name: "USA", preposition: "in die", flag: "https://flagcdn.com/w80/us.png"},
+        ];
+        let currentStates = [];
+
+        function initializeGame() {
+            if (completedCountries.size >= statesData.length) {
+                showGameOver();
+                return;
+            }
+
+            // Select 5 countries, prioritizing incomplete ones
+            const incompleteStates = statesData.filter(s => !completedCountries.has(s.name));
+            currentStates = incompleteStates.length > 0
+                ? incompleteStates.sort(() => Math.random() - 0.5).slice(0, Math.min(5, incompleteStates.length))
+                : statesData.sort(() => Math.random() - 0.5).slice(0, 5);
+
+            const statesContainer = document.getElementById('states');
+            const flagsContainer = document.getElementById('flags');
+            statesContainer.innerHTML = '';
+            flagsContainer.innerHTML = '';
+
+            // Create state boxes
+            currentStates.forEach(state => {
+                const stateBox = document.createElement('div');
+                stateBox.className = 'state-box';
+                stateBox.dataset.state = state.name;
+                stateBox.innerHTML = `<h3>${state.name}</h3><div class="preposition-drop"></div><div class="flag-drop"></div>`;
+                stateBox.addEventListener('dragover', dragOver);
+                stateBox.addEventListener('drop', drop);
+                statesContainer.appendChild(stateBox);
+            });
+
+            // Create flag images (shuffled)
+            const shuffledFlags = currentStates.slice().sort(() => Math.random() - 0.5);
+            shuffledFlags.forEach(state => {
+                const flagImg = document.createElement('img');
+                flagImg.className = 'flag';
+                flagImg.src = state.flag;
+                flagImg.draggable = true;
+                flagImg.dataset.state = state.name;
+                flagImg.addEventListener('dragstart', dragStart);
+                flagsContainer.appendChild(flagImg);
+            });
+
+            // Add drag events to prepositions
+            document.querySelectorAll('.preposition').forEach(prep => {
+                prep.addEventListener('dragstart', dragStart);
+            });
+
+            updateProgress();
+        }
+
+        function dragStart(e) {
+            e.dataTransfer.setData('text/plain', JSON.stringify({
+                type: e.target.className.includes('preposition') ? 'preposition' : 'flag',
+                value: e.target.dataset.preposition || e.target.dataset.state
+            }));
+        }
+
+        function dragOver(e) {
+            e.preventDefault();
+            e.target.closest('.state-box').classList.add('drag-over');
+        }
+
+        function drop(e) {
+            e.preventDefault();
+            const stateBox = e.target.closest('.state-box');
+            stateBox.classList.remove('drag-over');
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            const stateData = statesData.find(s => s.name === stateBox.dataset.state);
+
+            if (data.type === 'preposition') {
+                const prepDrop = stateBox.querySelector('.preposition-drop');
+                if (!prepDrop.innerHTML) {
+                    prepDrop.innerHTML = `<span class="preposition">${data.value}</span>`;
+                    const isCorrect = data.value === stateData.preposition || (stateData.preposition === "ins" && data.value === "in die");
+                    if (isCorrect) {
+                        prepDrop.classList.add('correct');
+                        score += 10;
+                    } else {
+                        prepDrop.classList.add('incorrect');
+                    }
+                    checkCompletion(stateBox);
+                    updateScore();
+                }
+            } else if (data.type === 'flag') {
+                const flagDrop = stateBox.querySelector('.flag-drop');
+                if (!flagDrop.innerHTML) {
+                    const flagImg = document.createElement('img');
+                    flagImg.className = 'flag';
+                    flagImg.src = statesData.find(s => s.name === data.value).flag;
+                    flagDrop.appendChild(flagImg);
+                    if (data.value === stateBox.dataset.state) {
+                        flagDrop.classList.add('correct');
+                        score += 20;
+                    } else {
+                        flagDrop.classList.add('incorrect');
+                    }
+                    checkCompletion(stateBox);
+                    updateScore();
+                }
+            }
+        }
+
+        function checkCompletion(stateBox) {
+            const stateName = stateBox.dataset.state;
+            const prepDrop = stateBox.querySelector('.preposition-drop');
+            const flagDrop = stateBox.querySelector('.flag-drop');
+            const stateData = statesData.find(s => s.name === stateName);
+
+            const prepCorrect = prepDrop.querySelector('.correct') && (
+                prepDrop.textContent === stateData.preposition ||
+                (stateData.preposition === "ins" && prepDrop.textContent === "in die")
+            );
+            const flagCorrect = flagDrop.querySelector('.flag') && flagDrop.querySelector('.correct');
+
+            if (prepCorrect && flagCorrect) {
+                completedCountries.add(stateName);
+                updateProgress();
+                if (completedCountries.size >= statesData.length) {
+                    showGameOver();
+                }
+            }
+        }
+
+        function updateScore() {
+            document.getElementById('score').textContent = `Skóre: ${score}`;
+        }
+
+        function updateProgress() {
+            document.getElementById('progress').textContent = `Postup: ${completedCountries.size}/44 států dokončeno`;
+        }
+
+        function showGameOver() {
+            document.getElementById('final-score').textContent = score;
+            document.getElementById('game-over').style.display = 'flex';
+        }
+
+        function resetGame() {
+            score = 0;
+            completedCountries.clear();
+            updateScore();
+            updateProgress();
+            document.getElementById('game-over').style.display = 'none';
+            initializeGame();
+        }
+
+        function nextSet() {
+            initializeGame();
+        }
+
+        function restartGame() {
+            resetGame();
+        }
+
+        // Initialize the game on load
+        initializeGame();
+    </script>
+</body>
+</html>
